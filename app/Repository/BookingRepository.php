@@ -132,64 +132,46 @@ class BookingRepository extends BaseRepository
         $consumer_type = $user->userMeta->consumer_type;
         if ($user->user_type == env('CUSTOMER_ROLE_ID')) {
             $cuser = $user;
-
-            if (!isset($data['from_language_id'])) {
-                $response['status'] = 'fail';
-                $response['message'] = "Du måste fylla in alla fält";
-                $response['field_name'] = "from_language_id";
-                return $response;
+            $error=$this->fieldValidationCheck($data,'from_language_id');
+            if($error){
+                return $error;
+            }
+            $error=$this->fieldValidationCheck($data,'duration');
+            if($error){
+                return $error;
             }
             if ($data['immediate'] == 'no') {
-                if (isset($data['due_date']) && $data['due_date'] == '') {
-                    $response['status'] = 'fail';
-                    $response['message'] = "Du måste fylla in alla fält";
-                    $response['field_name'] = "due_date";
-                    return $response;
+                $error=$this->fieldValidationCheck($data,'due_date');
+                if($error){
+                    return $error;
                 }
-                if (isset($data['due_time']) && $data['due_time'] == '') {
-                    $response['status'] = 'fail';
-                    $response['message'] = "Du måste fylla in alla fält";
-                    $response['field_name'] = "due_time";
-                    return $response;
+               
+                $error=$this->fieldValidationCheck($data,'due_time');
+                if($error){
+                    return $error;
                 }
-                if (!isset($data['customer_phone_type']) && !isset($data['customer_physical_type'])) {
-                    $response['status'] = 'fail';
-                    $response['message'] = "Du måste göra ett val här";
-                    $response['field_name'] = "customer_phone_type";
-                    return $response;
+
+                $error_customer_phone_type=$this->fieldValidationCheck($data,'customer_phone_type');
+                $error_customer_physical_type=$this->fieldValidationCheck($data,'customer_physical_type');
+                if($error_customer_phone_type && $error_customer_physical_type){
+                    return $error_customer_phone_type;
                 }
-                if (isset($data['duration']) && $data['duration'] == '') {
-                    $response['status'] = 'fail';
-                    $response['message'] = "Du måste fylla in alla fält";
-                    $response['field_name'] = "duration";
-                    return $response;
-                }
-            } else {
-                if (isset($data['duration']) && $data['duration'] == '') {
-                    $response['status'] = 'fail';
-                    $response['message'] = "Du måste fylla in alla fält";
-                    $response['field_name'] = "duration";
-                    return $response;
-                }
-            }
+               
+            } 
+            $data['customer_physical_type'] = 'no';
+            $response['customer_physical_type'] = 'no';
             if (isset($data['customer_phone_type'])) {
                 $data['customer_phone_type'] = 'yes';
-            } else {
-                $data['customer_phone_type'] = 'no';
             }
 
             if (isset($data['customer_physical_type'])) {
                 $data['customer_physical_type'] = 'yes';
                 $response['customer_physical_type'] = 'yes';
-            } else {
-                $data['customer_physical_type'] = 'no';
-                $response['customer_physical_type'] = 'no';
             }
 
             if ($data['immediate'] == 'yes') {
                 $due_carbon = Carbon::now()->addMinute($immediatetime);
                 $data['due'] = $due_carbon->format('Y-m-d H:i:s');
-                $data['immediate'] = 'yes';
                 $data['customer_phone_type'] = 'yes';
                 $response['type'] = 'immediate';
 
@@ -291,19 +273,13 @@ class BookingRepository extends BaseRepository
         $job->reference = isset($data['reference']) ? $data['reference'] : '';
         $user = $job->user()->get()->first();
         if (isset($data['address'])) {
-            $job->address = ($data['address'] != '') ? $data['address'] : $user->userMeta->address;
-            $job->instructions = ($data['instructions'] != '') ? $data['instructions'] : $user->userMeta->instructions;
-            $job->town = ($data['town'] != '') ? $data['town'] : $user->userMeta->city;
+            $job->address = $data['address'] ?? $user->userMeta->address;
+            $job->instructions =  $data['instructions'] ?? $user->userMeta->instructions;
+            $job->town =  $data['town'] ?? $user->userMeta->city;
         }
         $job->save();
-
-        if (!empty($job->user_email)) {
-            $email = $job->user_email;
-            $name = $user->name;
-        } else {
-            $email = $user->email;
-            $name = $user->name;
-        }
+        $email=  $job->user_email ?? $user->email;
+        $name= $user->name;
         $subject = 'Vi har mottagit er tolkbokning. Bokningsnr: #' . $job->id;
         $send_data = [
             'user' => $user,
@@ -395,11 +371,7 @@ class BookingRepository extends BaseRepository
         $job->session_time = $interval;
 
         $user = $job->user()->get()->first();
-        if (!empty($job->user_email)) {
-            $email = $job->user_email;
-        } else {
-            $email = $user->email;
-        }
+        $email = $job->user_email ??  $user->email;
         $name = $user->name;
         $subject = 'Information om avslutad tolkning för bokningsnummer # ' . $job->id;
         $session_explode = explode(':', $job->session_time);
@@ -631,12 +603,11 @@ class BookingRepository extends BaseRepository
         $android_sound = 'default';
 
         if ($data['notification_type'] == 'suitable_job') {
+            $android_sound = 'emergency_booking';
+                $ios_sound = 'emergency_booking.mp3';
             if ($data['immediate'] == 'no') {
                 $android_sound = 'normal_booking';
                 $ios_sound = 'normal_booking.mp3';
-            } else {
-                $android_sound = 'emergency_booking';
-                $ios_sound = 'emergency_booking.mp3';
             }
         }
 
@@ -849,11 +820,7 @@ class BookingRepository extends BaseRepository
         $old_status = $job->status;
         $job->status = $data['status'];
         $user = $job->user()->first();
-        if (!empty($job->user_email)) {
-            $email = $job->user_email;
-        } else {
-            $email = $user->email;
-        }
+        $email = $job->user_email ??  $user->email;
         $name = $user->name;
         $dataEmail = [
             'user' => $user,
@@ -970,11 +937,7 @@ class BookingRepository extends BaseRepository
         if ($data['admin_comments'] == '' && $data['status'] == 'timedout') return false;
         $job->admin_comments = $data['admin_comments'];
         $user = $job->user()->first();
-        if (!empty($job->user_email)) {
-            $email = $job->user_email;
-        } else {
-            $email = $user->email;
-        }
+        $email = $job->user_email ??  $user->email;
         $name = $user->name;
         $dataEmail = [
             'user' => $user,
@@ -1079,7 +1042,7 @@ class BookingRepository extends BaseRepository
                     'user' => $user,
                     'job'  => $job
                 ];
-
+                /* Use laravel Jobs for send emails */
                 $subject = 'Information om avslutad tolkning för bokningsnummer #' . $job->id;
                 $this->mailer->send($email, $name, $subject, 'emails.status-changed-from-pending-or-assigned-customer', $dataEmail);
 
@@ -1337,13 +1300,12 @@ class BookingRepository extends BaseRepository
     {
         $data = array();
         $data['notification_type'] = 'session_start_remind';
+        $type='telefontolkningen';
         if ($job->customer_physical_type == 'yes')
+            $type='platstolkningen';
+
             $msg_text = array(
-                "en" => 'Du har nu fått platstolkningen för ' . $language . ' kl ' . $duration . ' den ' . $due . '. Vänligen säkerställ att du är förberedd för den tiden. Tack!'
-            );
-        else
-            $msg_text = array(
-                "en" => 'Du har nu fått telefontolkningen för ' . $language . ' kl ' . $duration . ' den ' . $due . '. Vänligen säkerställ att du är förberedd för den tiden. Tack!'
+                "en" => 'Du har nu fått '.$type.' för ' . $language . ' kl ' . $duration . ' den ' . $due . '. Vänligen säkerställ att du är förberedd för den tiden. Tack!'
             );
 
         if ($this->bookingRepository->isNeedToSendPush($user->id)) {
@@ -1392,14 +1354,11 @@ class BookingRepository extends BaseRepository
                 $job->save();
                 $user = $job->user()->get()->first();
                 $mailer = new AppMailer();
-
+                $email = $user->email;
+                $name = $user->name;
+                $subject = 'Bekräftelse - tolk har accepterat er bokning (bokning # ' . $job->id . ')';
                 if (!empty($job->user_email)) {
                     $email = $job->user_email;
-                    $name = $user->name;
-                    $subject = 'Bekräftelse - tolk har accepterat er bokning (bokning # ' . $job->id . ')';
-                } else {
-                    $email = $user->email;
-                    $name = $user->name;
                     $subject = 'Bekräftelse - tolk har accepterat er bokning (bokning # ' . $job->id . ')';
                 }
                 $data = [
@@ -1439,12 +1398,10 @@ class BookingRepository extends BaseRepository
                 $job->save();
                 $user = $job->user()->get()->first();
                 $mailer = new AppMailer();
-
+                $email = $user->email;
+                $name = $user->name;
                 if (!empty($job->user_email)) {
                     $email = $job->user_email;
-                    $name = $user->name;
-                } else {
-                    $email = $user->email;
                     $name = $user->name;
                 }
                 $subject = 'Bekräftelse - tolk har accepterat er bokning (bokning # ' . $job->id . ')';
@@ -1612,10 +1569,9 @@ class BookingRepository extends BaseRepository
         $job->session_time = $interval;
 
         $user = $job->user()->get()->first();
+        $email = $user->email;
         if (!empty($job->user_email)) {
             $email = $job->user_email;
-        } else {
-            $email = $user->email;
         }
         $name = $user->name;
         $subject = 'Information om avslutad tolkning för bokningsnummer # ' . $job->id;
@@ -2179,6 +2135,18 @@ class BookingRepository extends BaseRepository
         $minutes = ($time % 60);
         
         return sprintf($format, $hours, $minutes);
+    }
+
+    private function fieldValidationCheck($data,$field_name){
+        $response=array();
+        
+        if(empty($data["$field_name"])){
+            $response['status'] = 'fail';
+            $response['message'] = 'Du måste fylla in alla fält';
+            $response['field_name'] = $field_name;
+        }
+       
+        return $response;
     }
 
 }

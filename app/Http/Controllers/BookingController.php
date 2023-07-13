@@ -35,12 +35,16 @@ class BookingController extends Controller
      */
     public function index(Request $request)
     {
+    /*
+    1) Do not use env variables directly in classes
+    2) Add the variable to some config file in config directory like role
+    */
         if($user_id = $request->get('user_id')) {
 
             $response = $this->repository->getUsersJobs($user_id);
 
         }
-        elseif($request->__authenticatedUser->user_type == env('ADMIN_ROLE_ID') || $request->__authenticatedUser->user_type == env('SUPERADMIN_ROLE_ID'))
+        elseif($request->__authenticatedUser->user_type == config('role.admin_role_id') || $request->__authenticatedUser->user_type == config('role.superadmin_role_id'))
         {
             $response = $this->repository->getAll($request);
         }
@@ -195,7 +199,7 @@ class BookingController extends Controller
     public function distanceFeed(Request $request)
     {
         $data = $request->all();
-
+        /*
         if (isset($data['distance']) && $data['distance'] != "") {
             $distance = $data['distance'];
         } else {
@@ -215,14 +219,18 @@ class BookingController extends Controller
         } else {
             $session = "";
         }
-
+        */
+        $distance = $data['distance'] ?? "";
+        $time =     $data['time'] ?? "";
+        $jobid =    $data['jobid'] ?? "";
+        $session =  $data['session_time'] ?? "";
         if ($data['flagged'] == 'true') {
             if($data['admincomment'] == '') return "Please, add comment";
             $flagged = 'yes';
         } else {
             $flagged = 'no';
         }
-        
+        /*
         if ($data['manually_handled'] == 'true') {
             $manually_handled = 'yes';
         } else {
@@ -240,14 +248,18 @@ class BookingController extends Controller
         } else {
             $admincomment = "";
         }
+        */
+        $manually_handled = ($data['manually_handled'] == 'true') ? 'yes' : 'no';
+        $by_admin = ($data['by_admin'] == 'true') ? 'yes' : 'no';
+        $admin_comment = $data['admincomment'] ?? "";
         if ($time || $distance) {
 
             $affectedRows = Distance::where('job_id', '=', $jobid)->update(array('distance' => $distance, 'time' => $time));
         }
 
-        if ($admincomment || $session || $flagged || $manually_handled || $by_admin) {
+        if ($admin_comment || $session || $flagged || $manually_handled || $by_admin) {
 
-            $affectedRows1 = Job::where('id', '=', $jobid)->update(array('admin_comments' => $admincomment, 'flagged' => $flagged, 'session_time' => $session, 'manually_handled' => $manually_handled, 'by_admin' => $by_admin));
+            $affectedRows1 = Job::where('id', '=', $jobid)->update(array('admin_comments' => $admin_comment, 'flagged' => $flagged, 'session_time' => $session, 'manually_handled' => $manually_handled, 'by_admin' => $by_admin));
 
         }
 
@@ -279,6 +291,7 @@ class BookingController extends Controller
      */
     public function resendSMSNotifications(Request $request)
     {
+        /* Validation required to make sure jobid is set and it is a integer value*/
         $data = $request->all();
         $job = $this->repository->find($data['jobid']);
         $job_data = $this->repository->jobToData($job);
